@@ -1,0 +1,56 @@
+# Ignore everything not needed for deployment to Vercel
+
+# VCS
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual environments and Python site-packages
+.venv/
+venv/
+venv*/
+**/site-packages/**
+
+# Node
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Local data and generated artifacts
+static/uploads/
+static/uploads/**
+!static/uploads/results/
+!static/uploads/heatmaps/
+*.pt
+*.onnx
+*.pth
+
+# Build/Dist
+build/
+dist/
+
+# Not needed for deployment
+README.md
+requirements.txt
+python-version
+.pyenv-version
+
+# Cache
+.cache/
+*.cache/
+
+# Flask instance
+instance/

@@ -45,3 +45,4 @@ dist/
 
 # Jupyter
 .ipynb_checkpoints/
+.vercel
