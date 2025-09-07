@@ -4,9 +4,9 @@ export default async function handler(req, res) {
     return;
   }
   try {
-    const { image_base64, class_index, algorithm, colormap, overlay_alpha } = req.body || {};
-    if (!image_base64) {
-      res.status(400).json({ error: 'image_base64 is required' });
+    const { filename, class_index, algorithm, colormap, overlay_alpha } = req.body || {};
+    if (!filename) {
+      res.status(400).json({ error: 'filename is required' });
       return;
     }
 
@@ -24,7 +24,7 @@ export default async function handler(req, res) {
     const upstream = await fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ image_base64, class_index, algorithm, colormap, overlay_alpha }),
+      body: JSON.stringify({ filename, class_index, algorithm, colormap, overlay_alpha }),
     });
 
     const data = await upstream.json().catch(() => null);

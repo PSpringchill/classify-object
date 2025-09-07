@@ -16,7 +16,16 @@ export default async function handler(req, res) {
       return;
     }
 
-    const headers = { 'Content-Type': 'application/json' };
+    // Build multipart/form-data for upstream
+    const buffer = Buffer.from(image_base64, 'base64');
+    const form = new FormData();
+    const file = new Blob([buffer], { type: 'application/octet-stream' });
+    form.append('file', file, 'upload.png');
+    if (typeof threshold !== 'undefined') {
+      form.append('threshold', String(threshold));
+    }
+
+    const headers = {};
     const authHeader = process.env.API_AUTH_HEADER || 'Authorization';
     const token = process.env.API_TOKEN;
     if (token) headers[authHeader] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
@@ -24,7 +33,7 @@ export default async function handler(req, res) {
     const upstream = await fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ image_base64, threshold }),
+      body: form,
     });
 
     const data = await upstream.json().catch(() => null);

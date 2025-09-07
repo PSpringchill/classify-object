@@ -274,6 +274,10 @@
       gradcamControls.classList.remove('hidden');
       heatmapContainer.classList.add('hidden');
       heatmapOverlay.classList.add('hidden');
+      // capture filename from upstream so we can call /api/explain with it
+      if (data && data.filename) {
+        currentFilename = data.filename;
+      }
       lastPredictions = Array.isArray(data.predictions) ? data.predictions : [];
       explainAllBtn.disabled = lastPredictions.length === 0;
       heatmapGallery.classList.add('hidden');
@@ -388,14 +392,14 @@
       document.querySelectorAll('.explain-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
           const classIndex = parseInt(e.currentTarget.getAttribute('data-class-index')) || 0;
-          if (!currentImageBase64) { showError('No image for explanation'); return; }
+          if (!currentFilename) { showError('No filename available for explanation'); return; }
           explainStatus.textContent = 'Generating Grad-CAM...';
           try {
             const resp = await fetch('/api/explain', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                image_base64: currentImageBase64,
+                filename: currentFilename,
                 class_index: classIndex,
                 algorithm: algoSelect.value,
                 colormap: cmapSelect.value,
@@ -440,7 +444,7 @@
     });
 
     explainAllBtn.addEventListener('click', async () => {
-      if (!currentImageBase64 || lastPredictions.length === 0) return;
+      if (!currentFilename || lastPredictions.length === 0) return;
       heatmapGallery.classList.remove('hidden');
       galleryGrid.innerHTML = '';
       explainStatus.textContent = 'Generating Grad-CAM for all classes...';
@@ -465,7 +469,7 @@
         fetch('/api/explain', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            image_base64: currentImageBase64,
+            filename: currentFilename,
             class_index: pred.class_index ?? idx,
             algorithm: algoSelect.value,
             colormap: cmapSelect.value,
