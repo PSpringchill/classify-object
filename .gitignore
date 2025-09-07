@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+venv311/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Uploads and generated assets
+static/uploads/
+static/uploads/**
+!static/uploads/results/
+!static/uploads/heatmaps/
+
+# Model weights and large files
+*.pt
+*.onnx
+*.pth
+
+# Cache
+*.cache/
+.cache/
+
+# Flask
+instance/
+
+# Python packaging
+build/
+dist/
+
+# Jupyter
+.ipynb_checkpoints/

@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Classification with YOLOv8</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .dropzone {
+            border: 2px dashed #9CA3AF;
+            border-radius: 0.5rem;
+            transition: all 0.3s ease;
+        }
+        .dropzone.dragover {
+            border-color: #3B82F6;
+            background-color: #EFF6FF;
+        }
+        .result-box {
+            border: 2px solid #3B82F6;
+            position: absolute;
+            pointer-events: none;
+        }
+        .result-label {
+            background-color: rgba(59, 130, 246, 0.8);
+            color: white;
+            padding: 2px 6px;
+            font-size: 12px;
+            border-radius: 4px;
+            position: absolute;
+            transform: translateY(-100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="mb-6">
+            <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+                <div>
+                    <h1 class="text-4xl font-bold text-gray-800 mb-2">Image Intelligence</h1>
+                    <p class="text-gray-600">Analyze with Classification or Detection (Ultralytics)</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <label for="modeSelect" class="text-sm text-gray-700">Mode</label>
+                    <select id="modeSelect" class="border border-gray-300 rounded px-2 py-1 text-sm">
+                        <option value="classification" selected>Classification</option>
+                        <option value="detection">Detection</option>
+                    </select>
+                </div>
+            </div>
+        </header>
+
+        <div class="max-w-3xl mx-auto bg-white rounded-xl shadow-md overflow-hidden p-6">
+            <div id="dropZone" class="dropzone p-12 text-center cursor-pointer mb-8">
+                <div class="space-y-2">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <p class="text-gray-600">Drag and drop an image here, or click to select</p>
+                    <p class="text-sm text-gray-500">Supports JPG, JPEG, PNG, GIF (max 16MB)</p>
+                    <input type="file" id="fileInput" class="hidden" accept="image/*">
+                </div>
+            </div>
+
+            <div class="relative">
+                <div id="imageContainer" class="relative mx-auto max-w-2xl">
+                    <img id="previewImage" class="hidden w-full h-auto rounded-lg" alt="Preview">
+                    <img id="heatmapOverlay" class="hidden w-full h-auto rounded-lg absolute top-0 left-0 mix-blend-multiply" alt="Heatmap Overlay">
+                </div>
+                <div id="loadingSpinner" class="hidden text-center py-8">
+                    <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-500 border-r-transparent"></div>
+                    <p class="mt-2 text-gray-600">Analyzing image...</p>
+                </div>
+                <div id="errorMessage" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                    <span class="block sm:inline" id="errorText">Error message will appear here</span>
+                </div>
+            </div>
+
+            <div id="results" class="mt-8 hidden">
+                <h2 id="resultsTitle" class="text-xl font-semibold text-gray-800 mb-4">Top-5 Predictions</h2>
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <div id="resultsList" class="space-y-3">
+                        <!-- Results will be populated here -->
+                    </div>
+                </div>
+                <div id="gradcamControls" class="mt-6 flex flex-wrap items-center gap-4">
+                    <label class="inline-flex items-center">
+                        <input id="toggleOverlay" type="checkbox" class="form-checkbox h-4 w-4 text-blue-600">
+                        <span class="ml-2 text-gray-700">Show heatmap overlay</span>
+                    </label>
+                    <span id="explainStatus" class="text-sm text-gray-500"></span>
+                    <div class="flex items-center gap-2">
+                        <label for="algoSelect" class="text-sm text-gray-700">Algorithm</label>
+                        <select id="algoSelect" class="border border-gray-300 rounded px-2 py-1 text-sm">
+                            <option value="gradcam" selected>Grad-CAM</option>
+                            <option value="gradcam++">Grad-CAM++</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label for="cmapSelect" class="text-sm text-gray-700">Colormap</label>
+                        <select id="cmapSelect" class="border border-gray-300 rounded px-2 py-1 text-sm">
+                            <option value="jet" selected>jet</option>
+                            <option value="magma">magma</option>
+                            <option value="viridis">viridis</option>
+                            <option value="plasma">plasma</option>
+                            <option value="inferno">inferno</option>
+                            <option value="turbo">turbo</option>
+                            <option value="cividis">cividis</option>
+                            <option value="cubehelix">cubehelix</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label for="alphaSlider" class="text-sm text-gray-700">Overlay opacity</label>
+                        <input id="alphaSlider" type="range" min="0" max="100" value="60" class="w-40">
+                        <span id="alphaValue" class="text-sm text-gray-600 w-8 text-right">60%</span>
+                    </div>
+                    <button id="downloadHeatmapBtn" class="ml-auto inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-700 text-white rounded hover:bg-gray-800 disabled:opacity-40" disabled>
+                        Download heatmap
+                    </button>
+                    <button id="copyShareBtn" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-40" disabled>
+                        Copy share link
+                    </button>
+                    <button id="explainAllBtn" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-40" disabled>
+                        Explain all (Top-5)
+                    </button>
+                </div>
+                <div id="detectionControls" class="mt-6 hidden flex flex-wrap items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <label for="detThresh" class="text-sm text-gray-700">Confidence threshold</label>
+                        <input id="detThresh" type="range" min="0" max="100" value="30" class="w-40">
+                        <span id="detThreshValue" class="text-sm text-gray-600 w-8 text-right">30%</span>
+                    </div>
+                </div>
+                <div id="heatmapContainer" class="mt-4 hidden">
+                    <img id="heatmapImage" class="w-full h-auto rounded-lg" alt="Grad-CAM Heatmap">
+                </div>
+                <div id="heatmapGallery" class="mt-6 hidden">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-3">Heatmap Gallery</h3>
+                    <div id="galleryGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+                </div>
+                <div id="legend" class="mt-6 hidden">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-3">Legend</h3>
+                    <div id="legendItems" class="flex flex-wrap gap-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const previewImage = document.getElementById('previewImage');
+        const imageContainer = document.getElementById('imageContainer');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const errorMessage = document.getElementById('errorMessage');
+        const resultsSection = document.getElementById('results');
+        const resultsList = document.getElementById('resultsList');
+        const heatmapImage = document.getElementById('heatmapImage');
+        const heatmapContainer = document.getElementById('heatmapContainer');
+        const heatmapOverlay = document.getElementById('heatmapOverlay');
+        const toggleOverlay = document.getElementById('toggleOverlay');
+        const explainStatus = document.getElementById('explainStatus');
+        const alphaSlider = document.getElementById('alphaSlider');
+        const alphaValue = document.getElementById('alphaValue');
+        const downloadHeatmapBtn = document.getElementById('downloadHeatmapBtn');
+        const algoSelect = document.getElementById('algoSelect');
+        const cmapSelect = document.getElementById('cmapSelect');
+        const explainAllBtn = document.getElementById('explainAllBtn');
+        const heatmapGallery = document.getElementById('heatmapGallery');
+        const galleryGrid = document.getElementById('galleryGrid');
+        const copyShareBtn = document.getElementById('copyShareBtn');
+        const modeSelect = document.getElementById('modeSelect');
+        const resultsTitle = document.getElementById('resultsTitle');
+        const gradcamControls = document.getElementById('gradcamControls');
+        const detThresh = document.getElementById('detThresh');
+        const detThreshValue = document.getElementById('detThreshValue');
+        const detectionControls = document.getElementById('detectionControls');
+        const legend = document.getElementById('legend');
+        const legendItems = document.getElementById('legendItems');
+
+        let currentFilename = null;
+        let lastPredictions = [];
+        let lastResultId = null;
+        let lastDetections = [];
+        let classColors = {};
+
+        // Prevent default drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+
+        // Copy share link handler
+        copyShareBtn.addEventListener('click', async () => {
+            if (!lastResultId) return;
+            const url = new URL(window.location.href);
+            url.searchParams.set('id', lastResultId);
+            try {
+                await navigator.clipboard.writeText(url.toString());
+                explainStatus.textContent = 'Share link copied to clipboard';
+                setTimeout(() => (explainStatus.textContent = ''), 2500);
+            } catch (e) {
+                explainStatus.textContent = 'Failed to copy link';
+                setTimeout(() => (explainStatus.textContent = ''), 2500);
+            }
+        });
+
+        // Load by result ID if present in query string
+        async function loadByIdIfPresent() {
+            const params = new URLSearchParams(window.location.search);
+            const id = params.get('id');
+            if (!id) return;
+            loadingSpinner.classList.remove('hidden');
+            try {
+                const resp = await fetch(`/result/${encodeURIComponent(id)}`);
+                const data = await resp.json();
+                if (data && !data.error) {
+                    // Set preview image from file_url
+                    if (data.file_url) {
+                        previewImage.src = data.file_url;
+                        previewImage.classList.remove('hidden');
+                    }
+                    // Render predictions
+                    resultsSection.classList.remove('hidden');
+                    displayResults(data);
+                    // Set state variables
+                    currentFilename = data.filename;
+                    lastPredictions = Array.isArray(data.predictions) ? data.predictions : [];
+                    explainAllBtn.disabled = lastPredictions.length === 0;
+                    lastResultId = data.id;
+                    copyShareBtn.disabled = !lastResultId;
+                } else {
+                    showError(data.error || 'Result not found');
+                }
+            } catch (e) {
+                showError('Failed to load shared result');
+            } finally {
+                loadingSpinner.classList.add('hidden');
+            }
+        }
+
+        // kickoff
+        loadByIdIfPresent();
+
+        // Highlight drop zone when item is dragged over it
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+
+        // Handle dropped files
+        dropZone.addEventListener('drop', handleDrop, false);
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleFileSelect, false);
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        function highlight() {
+            dropZone.classList.add('dragover');
+        }
+
+        function unhighlight() {
+            dropZone.classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        }
+
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            handleFiles(files);
+        }
+
+        function handleFiles(files) {
+            if (files.length === 0) return;
+            
+            const file = files[0];
+            if (!file.type.match('image.*')) {
+                showError('Please select an image file');
+                return;
+            }
+            
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewImage.src = e.target.result;
+                previewImage.classList.remove('hidden');
+                processImage(file);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function isDetectionMode() {
+            return modeSelect.value === 'detection';
+        }
+
+        function processImage(file) {
+            // Show loading spinner
+            loadingSpinner.classList.remove('hidden');
+            errorMessage.classList.add('hidden');
+            resultsSection.classList.add('hidden');
+            
+            // Clear previous overlays (not used for classification but kept for safety)
+            imageContainer.querySelectorAll('.result-box, .result-label').forEach(el => el.remove());
+            
+            // Create FormData and send to server
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            const endpoint = isDetectionMode() ? '/detect' : '/predict';
+            fetch(endpoint, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Hide loading spinner
+                loadingSpinner.classList.add('hidden');
+                
+                // Display results
+                if (isDetectionMode()) {
+                    onDetectionResults(data);
+                } else {
+                    onClassificationResults(data);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showError(error.message || 'An error occurred while processing the image');
+                loadingSpinner.classList.add('hidden');
+            });
+        }
+
+        function displayResults(data) {
+            // Clear previous results
+            resultsList.innerHTML = '';
+
+            if (!data.predictions || data.predictions.length === 0) {
+                resultsList.innerHTML = '<p class="text-gray-600">No predictions found for this image.</p>';
+                resultsSection.classList.remove('hidden');
+                return;
+            }
+
+            // Display top-5 predictions: class + confidence bar
+            data.predictions.forEach((pred, idx) => {
+                const resultItem = document.createElement('div');
+                resultItem.className = 'py-2';
+                resultItem.innerHTML = `
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="font-medium text-gray-800">${pred.class}</span>
+                        <span class="text-gray-600">${pred.confidence}%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="bg-blue-500 h-2 rounded-full" style="width: ${pred.confidence}%;"></div>
+                    </div>
+                    <div class="mt-2 text-right">
+                        <button data-class-index="${pred.class_index ?? idx}" class="explain-btn inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+                            Explain (Grad-CAM)
+                        </button>
+                    </div>
+                `;
+                resultsList.appendChild(resultItem);
+            });
+
+            // Show results section
+            resultsSection.classList.remove('hidden');
+            attachExplainHandlers();
+        }
+
+        function onClassificationResults(data) {
+            resultsTitle.textContent = 'Top-5 Predictions';
+            gradcamControls.classList.remove('hidden');
+            heatmapContainer.classList.add('hidden');
+            heatmapOverlay.classList.add('hidden');
+            // Remember filename for explanations
+            currentFilename = data.filename;
+            // Store predictions and enable Explain All
+            lastPredictions = Array.isArray(data.predictions) ? data.predictions : [];
+            explainAllBtn.disabled = lastPredictions.length === 0;
+            // Enable share button and stash id if present
+            lastResultId = data.id;
+            copyShareBtn.disabled = !lastResultId;
+            // Reset gallery on each new prediction
+            heatmapGallery.classList.add('hidden');
+            galleryGrid.innerHTML = '';
+            // Render
+            displayResults(data);
+        }
+
+        function onDetectionResults(data) {
+            resultsTitle.textContent = 'Detections';
+            gradcamControls.classList.add('hidden');
+            detectionControls.classList.remove('hidden');
+            heatmapContainer.classList.add('hidden');
+            heatmapOverlay.classList.add('hidden');
+            // Clear explain-related state
+            currentFilename = null;
+            lastPredictions = [];
+            lastDetections = Array.isArray(data.predictions) ? data.predictions : [];
+            explainAllBtn.disabled = true;
+            copyShareBtn.disabled = true;
+            // Build colors and render view
+            classColors = buildClassColors(lastDetections);
+            updateDetectionView();
+            resultsSection.classList.remove('hidden');
+        }
+
+        function renderDetectionList(predictions) {
+            resultsList.innerHTML = '';
+            if (!predictions || predictions.length === 0) {
+                resultsList.innerHTML = '<p class="text-gray-600">No objects detected.</p>';
+                return;
+            }
+            // optionally group by class
+            const frag = document.createDocumentFragment();
+            predictions.forEach((pred, i) => {
+                const item = document.createElement('div');
+                item.className = 'py-2 border-b border-gray-200';
+                const [x1, y1, x2, y2] = pred.box;
+                item.innerHTML = `
+                    <div class="flex justify-between text-sm">
+                        <span class="font-medium text-gray-800 flex items-center gap-2">
+                            <span class="inline-block w-3 h-3 rounded-sm" style="background:${classColors[pred.class] || '#3B82F6'}"></span>
+                            ${pred.class}
+                        </span>
+                        <span class="text-gray-600">${pred.confidence}%</span>
+                    </div>
+                    <div class="text-xs text-gray-500">Box: [${x1.toFixed(0)}, ${y1.toFixed(0)}, ${x2.toFixed(0)}, ${y2.toFixed(0)}]</div>
+                `;
+                frag.appendChild(item);
+            });
+            resultsList.appendChild(frag);
+        }
+
+        function drawDetectionBoxes(predictions) {
+            // Remove existing
+            imageContainer.querySelectorAll('.result-box, .result-label').forEach(el => el.remove());
+            const img = previewImage;
+            const imgWidth = img.naturalWidth;
+            const imgHeight = img.naturalHeight;
+            const displayWidth = img.offsetWidth;
+            const displayHeight = img.offsetHeight;
+            if (!imgWidth || !imgHeight || !displayWidth || !displayHeight) return;
+            const scaleX = displayWidth / imgWidth;
+            const scaleY = displayHeight / imgHeight;
+            predictions.forEach(pred => {
+                const [x1, y1, x2, y2] = pred.box;
+                const box = document.createElement('div');
+                box.className = 'result-box rounded';
+                const color = classColors[pred.class] || '#3B82F6';
+                box.style.borderColor = color;
+                box.style.left = `${x1 * scaleX}px`;
+                box.style.top = `${y1 * scaleY}px`;
+                box.style.width = `${(x2 - x1) * scaleX}px`;
+                box.style.height = `${(y2 - y1) * scaleY}px`;
+                const label = document.createElement('div');
+                label.className = 'result-label';
+                label.textContent = `${pred.class} (${pred.confidence}%)`;
+                label.style.backgroundColor = hexToRgba(color, 0.85);
+                label.style.left = `${x1 * scaleX}px`;
+                label.style.top = `${y1 * scaleY}px`;
+                imageContainer.appendChild(box);
+                imageContainer.appendChild(label);
+            });
+        }
+
+        // Build deterministic colors per class using a palette
+        function buildClassColors(preds) {
+            const palette = ['#ef4444','#f97316','#f59e0b','#84cc16','#22c55e','#14b8a6','#06b6d4','#3b82f6','#8b5cf6','#a855f7','#ec4899','#f43f5e','#10b981'];
+            const map = {};
+            let i = 0;
+            const uniqueClasses = [...new Set((preds||[]).map(p => p.class))];
+            uniqueClasses.forEach(cls => {
+                map[cls] = palette[i % palette.length];
+                i++;
+            });
+            return map;
+        }
+
+        function hexToRgba(hex, alpha) {
+            const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            if (!m) return `rgba(59,130,246,${alpha})`;
+            const r = parseInt(m[1], 16);
+            const g = parseInt(m[2], 16);
+            const b = parseInt(m[3], 16);
+            return `rgba(${r},${g},${b},${alpha})`;
+        }
+
+        function updateLegend() {
+            legendItems.innerHTML = '';
+            const frag = document.createDocumentFragment();
+            Object.entries(classColors).forEach(([cls, color]) => {
+                const item = document.createElement('div');
+                item.className = 'flex items-center gap-2 text-sm';
+                item.innerHTML = `<span class="inline-block w-3 h-3 rounded-sm" style="background:${color}"></span><span class="text-gray-800">${cls}</span>`;
+                frag.appendChild(item);
+            });
+            legendItems.appendChild(frag);
+            legend.classList.toggle('hidden', Object.keys(classColors).length === 0);
+        }
+
+        function updateDetectionView() {
+            const thr = Number(detThresh.value || 0);
+            detThreshValue.textContent = `${thr}%`;
+            const filtered = (lastDetections || []).filter(p => (p.confidence || 0) >= thr);
+            renderDetectionList(filtered);
+            drawDetectionBoxes(filtered);
+            updateLegend();
+        }
+
+        detThresh.addEventListener('input', updateDetectionView);
+
+        // Update UI elements when switching mode
+        modeSelect.addEventListener('change', () => {
+            // Clear previous overlays and results when switching modes
+            imageContainer.querySelectorAll('.result-box, .result-label').forEach(el => el.remove());
+            resultsList.innerHTML = '';
+            resultsSection.classList.add('hidden');
+            // Update title and visibility
+            if (isDetectionMode()) {
+                resultsTitle.textContent = 'Detections';
+                gradcamControls.classList.add('hidden');
+                detectionControls.classList.remove('hidden');
+            } else {
+                resultsTitle.textContent = 'Top-5 Predictions';
+                gradcamControls.classList.remove('hidden');
+                detectionControls.classList.add('hidden');
+                legend.classList.add('hidden');
+            }
+        });
+
+        // No bounding boxes are drawn for classification mode
+
+        function attachExplainHandlers() {
+            document.querySelectorAll('.explain-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const classIndex = parseInt(e.currentTarget.getAttribute('data-class-index')) || 0;
+                    if (!currentFilename) {
+                        showError('No filename available for explanation');
+                        return;
+                    }
+                    explainStatus.textContent = 'Generating Grad-CAM...';
+                    try {
+                        const resp = await fetch('/explain', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                filename: currentFilename,
+                                class_index: classIndex,
+                                algorithm: algoSelect.value,
+                                colormap: cmapSelect.value,
+                                overlay_alpha: Math.round(Number(alphaSlider.value || 0) * 2.55)
+                            })
+                        });
+                        const data = await resp.json();
+                        if (data.error) throw new Error(data.error);
+                        // Set heatmap image
+                        const heatSrc = data.heatmap_base64 || data.heatmap_url;
+                        heatmapImage.src = heatSrc;
+                        heatmapContainer.classList.remove('hidden');
+                        // Also prepare overlay
+                        heatmapOverlay.src = heatSrc;
+                        if (toggleOverlay.checked) {
+                            heatmapOverlay.classList.remove('hidden');
+                        }
+                        explainStatus.textContent = 'Grad-CAM ready';
+                        // Enable download button
+                        downloadHeatmapBtn.disabled = false;
+                        downloadHeatmapBtn.dataset.src = heatSrc;
+                    } catch (err) {
+                        explainStatus.textContent = '';
+                        showError(err.message || 'Failed to generate Grad-CAM');
+                    }
+                });
+            });
+        }
+
+        toggleOverlay.addEventListener('change', () => {
+            if (toggleOverlay.checked) {
+                heatmapOverlay.classList.remove('hidden');
+            } else {
+                heatmapOverlay.classList.add('hidden');
+            }
+        });
+
+        // Opacity slider -> controls overlay <img> opacity via CSS (0..1)
+        function setOverlayOpacity(val) {
+            const clamped = Math.max(0, Math.min(100, Number(val) || 0));
+            heatmapOverlay.style.opacity = (clamped / 100).toString();
+            alphaValue.textContent = `${clamped}%`;
+        }
+        alphaSlider.addEventListener('input', (e) => setOverlayOpacity(e.target.value));
+        // initialize default opacity
+        setOverlayOpacity(alphaSlider.value);
+
+        // Download button handler
+        downloadHeatmapBtn.addEventListener('click', () => {
+            const src = downloadHeatmapBtn.dataset.src;
+            if (!src) return;
+            const a = document.createElement('a');
+            a.href = src;
+            a.download = 'gradcam_heatmap.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+
+        // Explain all (Top-5) handler
+        explainAllBtn.addEventListener('click', async () => {
+            if (!currentFilename || lastPredictions.length === 0) return;
+            heatmapGallery.classList.remove('hidden');
+            galleryGrid.innerHTML = '';
+            explainStatus.textContent = 'Generating Grad-CAM for all classes...';
+
+            // Create placeholder cards
+            const cards = lastPredictions.map((pred, i) => {
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-lg shadow p-3';
+                card.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <div class="text-sm font-medium text-gray-800">${pred.class}</div>
+                        <div class="text-xs text-gray-500">${pred.confidence}%</div>
+                    </div>
+                    <div class="w-full aspect-video bg-gray-100 rounded overflow-hidden flex items-center justify-center text-gray-400 text-sm">Loading...</div>
+                    <div class="mt-2 text-right">
+                        <button class="dl-btn inline-flex items-center gap-2 px-2 py-1 text-xs bg-gray-700 text-white rounded hover:bg-gray-800 disabled:opacity-40" disabled>Download</button>
+                    </div>
+                `;
+                galleryGrid.appendChild(card);
+                return card;
+            });
+
+            // Fire requests in parallel
+            const requests = lastPredictions.map((pred, idx) => (
+                fetch('/explain', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        filename: currentFilename,
+                        class_index: pred.class_index ?? idx,
+                        algorithm: algoSelect.value,
+                        colormap: cmapSelect.value,
+                        overlay_alpha: Math.round(Number(alphaSlider.value || 0) * 2.55)
+                    })
+                }).then(r => r.json()).then(data => ({ data, idx }))
+            ));
+
+            try {
+                const results = await Promise.all(requests);
+                results.forEach(({ data, idx }) => {
+                    const card = cards[idx];
+                    const imgWrap = card.querySelector('div:nth-child(2)');
+                    if (data && !data.error) {
+                        const heatSrc = data.heatmap_base64 || data.heatmap_url;
+                        const img = document.createElement('img');
+                        img.className = 'w-full h-auto';
+                        img.src = heatSrc;
+                        imgWrap.replaceWith(img);
+                        const dlBtn = card.querySelector('.dl-btn');
+                        dlBtn.disabled = false;
+                        dlBtn.addEventListener('click', () => {
+                            const a = document.createElement('a');
+                            a.href = heatSrc;
+                            a.download = `${lastPredictions[idx].class}_gradcam.png`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                        });
+                    } else {
+                        imgWrap.textContent = 'Failed to generate';
+                    }
+                });
+                explainStatus.textContent = 'All Grad-CAMs ready';
+            } catch (e) {
+                explainStatus.textContent = 'Failed to generate some heatmaps';
+            }
+        });
+
+        function showError(message) {
+            errorMessage.classList.remove('hidden');
+            document.getElementById('errorText').textContent = message;
+        }
+    </script>
+</body>
+</html>
