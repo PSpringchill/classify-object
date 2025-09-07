@@ -24,6 +24,8 @@ static/uploads/
 static/uploads/**
 !static/uploads/results/
 !static/uploads/heatmaps/
+!static/uploads/results/**
+!static/uploads/heatmaps/**
 
 # Model weights and large files
 *.pt
